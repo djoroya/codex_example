@@ -82,8 +82,9 @@ const App = () => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    let animationFrameId;
     const { width, height } = canvas;
-    ctx.clearRect(0, 0, width, height);
+    const animationSpeed = 0.02;
 
     const range = settings.range;
     const scale = width / (range * 2);
@@ -92,53 +93,84 @@ const App = () => {
       y: height / 2 - point.y * scale
     });
 
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(0, 0, width, height);
+    const drawFrame = (time) => {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = "#e2e8f0";
-    ctx.lineWidth = 1;
-    for (let i = -range; i <= range; i += 1) {
-      const offset = i * scale;
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1;
+      for (let i = -range; i <= range; i += 1) {
+        const offset = i * scale;
+        ctx.beginPath();
+        ctx.moveTo(width / 2 + offset, 0);
+        ctx.lineTo(width / 2 + offset, height);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2 + offset);
+        ctx.lineTo(width, height / 2 + offset);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(width / 2 + offset, 0);
-      ctx.lineTo(width / 2 + offset, height);
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(0, height / 2 + offset);
-      ctx.lineTo(width, height / 2 + offset);
+      ctx.moveTo(width / 2, 0);
+      ctx.lineTo(width / 2, height);
       ctx.stroke();
-    }
 
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
-    ctx.stroke();
+      trajectories.forEach((trajectory, index) => {
+        if (trajectory.length < 2) return;
+        ctx.strokeStyle = COLORS[index % COLORS.length];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const start = toCanvas(trajectory[0]);
+        ctx.moveTo(start.x, start.y);
+        trajectory.slice(1).forEach((point) => {
+          const canvasPoint = toCanvas(point);
+          ctx.lineTo(canvasPoint.x, canvasPoint.y);
+        });
+        ctx.stroke();
 
-    trajectories.forEach((trajectory, index) => {
-      if (trajectory.length < 2) return;
-      ctx.strokeStyle = COLORS[index % COLORS.length];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      const start = toCanvas(trajectory[0]);
-      ctx.moveTo(start.x, start.y);
-      trajectory.slice(1).forEach((point) => {
-        const canvasPoint = toCanvas(point);
-        ctx.lineTo(canvasPoint.x, canvasPoint.y);
+        const finalPoint = toCanvas(trajectory[trajectory.length - 1]);
+        ctx.fillStyle = COLORS[index % COLORS.length];
+        ctx.beginPath();
+        ctx.arc(finalPoint.x, finalPoint.y, 3, 0, Math.PI * 2);
+        ctx.fill();
       });
-      ctx.stroke();
 
-      const finalPoint = toCanvas(trajectory[trajectory.length - 1]);
-      ctx.fillStyle = COLORS[index % COLORS.length];
-      ctx.beginPath();
-      ctx.arc(finalPoint.x, finalPoint.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-    });
+      if (trajectories.length > 0) {
+        trajectories.forEach((trajectory, index) => {
+          if (trajectory.length < 2) return;
+          const phase = (time * animationSpeed * (1 + index * 0.25)) % trajectory.length;
+          const current = trajectory[Math.floor(phase)];
+          const canvasPoint = toCanvas(current);
+          ctx.fillStyle = COLORS[index % COLORS.length];
+          ctx.beginPath();
+          ctx.arc(canvasPoint.x, canvasPoint.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    };
+
+    const render = (time) => {
+      drawFrame(time);
+      if (trajectories.length > 0) {
+        animationFrameId = window.requestAnimationFrame(render);
+      }
+    };
+
+    render(performance.now());
+
+    return () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [trajectories, settings]);
 
   const handleConditionChange = (index, key, value) => {
